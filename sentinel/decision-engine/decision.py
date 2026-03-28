@@ -1,5 +1,6 @@
 from kubernetes import client, config
 import time, requests
+import os
 
 # Connect to your local Minikube via your Mac's kubeconfig
 config.load_kube_config()
@@ -59,8 +60,19 @@ def decision_loop():
     # Use localhost through the port-forward tunnel!
     predictor_url = 'http://localhost:8000/risk'
     
-    # Placeholder for the user's explicit Slack workspace webhook
-    SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"
+    # Intelligently load local .env variables from the root folder
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env')
+    try:
+        with open(env_path) as f:
+            for line in f:
+                if '=' in line and not line.startswith('#'):
+                    k, v = line.strip().split('=', 1)
+                    os.environ[k.strip()] = v.strip().strip("'\"")
+    except FileNotFoundError:
+        pass
+
+    # Safely pull the Slack workspace webhook from the dynamically loaded OS environment
+    SLACK_WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
     while True:
         try:
