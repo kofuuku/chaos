@@ -1,0 +1,20 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: meltdown-cart
+  namespace: default
+spec:
+  mode: all
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app: cartservice
+  stressors:
+    cpu:
+      workers: 4
+      load: 100
+    memory:
+      workers: 4
+      size: '500MB'
+  duration: '5m'
