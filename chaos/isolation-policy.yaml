@@ -1,0 +1,15 @@
+# filename: isolation-policy.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: quarantine-isolated-pods
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      # This matches the label injected by the IDS script
+      security-status: isolated
+  policyTypes:
+    - Ingress
+    - Egress
+  # By leaving Ingress/Egress spec completely empty, it implicitly drops ALL network traffic.

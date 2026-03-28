@@ -480,3 +480,20 @@ body::before {
   color: var(--text-muted);
   font-size: 14px;
 }
+.critical-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #ef4444;
+  color: white;
+  padding: 12px 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  border-bottom-right-radius: 8px;
+  z-index: 9999;
+  animation: pulse-border 1.5s infinite;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.5);
+}

@@ -58,6 +58,9 @@ def decision_loop():
     print('[SENTINEL] Decision Engine Armed & Monitoring...')
     # Use localhost through the port-forward tunnel!
     predictor_url = 'http://localhost:8000/risk'
+    
+    # Placeholder for the user's explicit Slack workspace webhook
+    SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"
 
     while True:
         try:
@@ -75,6 +78,18 @@ def decision_loop():
                 if score > RED_THRESHOLD and time.time() - cooldown > 120:
                     print(f'\n🚨 [ALERT] Anomaly Detected in {svc.upper()}! Risk Score: {score}')
                     print(f'🤖 [AUTO-HEAL] Executing pre-emptive recovery action...')
+                    
+                    # 1. Fire Real-time Slack Telemetry Alert
+                    try:
+                        alert_msg = f"🚨 *SENTINEL CRITICAL ALERT*\n*Service:* `{svc}`\n*Risk Score:* `{score:.3f}`\n*Action:* Auto-Healing Sequence Engaged."
+                        requests.post(SLACK_WEBHOOK_URL, json={'text': alert_msg}, timeout=3)
+                    except Exception as e:
+                        pass
+                        
+                    # 2. Purge any lingering Chaos Mesh experiments so they stop re-infecting new pods
+                    subprocess.run(["kubectl", "delete", "networkchaos,stresschaos,podchaos", "--all", "--all-namespaces"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    
+                    # 2. Revert the programmatic scaling/image-corruption attacks
                     ACTION_MAP[svc]()
                     acted_recently[svc] = time.time()
                     print('---------------------------------------------------\n')

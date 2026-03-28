@@ -61,11 +61,17 @@ def prediction_loop():
                     if cpu_feat['mean'] > 0.15 or cpu_feat['max'] > 0.2:
                         aggregated_risk = max(aggregated_risk, 0.95)
                         
-                # VECTOR 2: Memory (OOMKilled Cycle Detection)
+                # VECTOR 2: Memory (OOMKilled Cycle Detection & Bloat Stress)
                 mem_vals = fetch_window('memory', svc, minutes=5)
                 mem_feat = compute_features(mem_vals) if len(mem_vals) > 1 else {'mean': 0.0}
+                
+                # OOMKilled Death Check
                 if svc in ['cartservice', 'frontend'] and mem_feat['mean'] < 15_000_000:
                     aggregated_risk = max(aggregated_risk, 0.96)
+                    
+                # StressChaos Bloat Check
+                if svc == 'redis-cart' and mem_feat['mean'] > 100_000_000:
+                    aggregated_risk = max(aggregated_risk, 0.95)
                     
                 # VECTOR 3: Network Errors (500s / Service Offline)
                 err_vals = fetch_window('errors', svc, minutes=5)
@@ -74,7 +80,7 @@ def prediction_loop():
                     aggregated_risk = max(aggregated_risk, 0.97)
 
                 risk = aggregated_risk
-                
+
                 print(f"DEBUG {time.strftime('%H:%M:%S')} - {svc:15} | CPU: {cpu_feat['mean']:.4f} | MEM: {mem_feat['mean']/1024/1024:.1f}MB | ERR: {err_feat['mean']:.2f} | Risk: {risk:.3f}")
                 
                 tensor, _, _ = prepare_sequence(cpu_vals if len(cpu_vals) > 1 else [0.0] * 120)
@@ -116,7 +122,20 @@ def get_actions():
 
 @app.get('/metrics')
 def get_metrics():
-    return {'history': telemetry_history[-120:], 'scores': state['risk_scores'], 'model_ready': state['model_ready']}
+    # Fetch isolated pods list to display in UI dynamically
+    import subprocess
+    try:
+        output = subprocess.check_output("kubectl get pods -n default -l app=quarantined -o jsonpath='{.items[*].metadata.name}'", shell=True, text=True)
+        isolated_pods = output.strip().split() if output.strip() else []
+    except Exception:
+        isolated_pods = []
+        
+    return {
+        'history': telemetry_history[-120:], 
+        'scores': state['risk_scores'], 
+        'model_ready': state['model_ready'],
+        'isolated_pods': isolated_pods
+    }
 
 @app.get('/stream')
 async def stream():
@@ -138,18 +157,25 @@ def _run_chaos(cmd):
 
 @app.post('/chaos/scale')
 def chaos_scale(bg: BackgroundTasks):
-    bg.add_task(_run_chaos, "kubectl scale deployment cartservice --replicas=0")
-    state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': '🔥 CHAOS INJECTED: cartservice scaled to 0 replicas (CPU/Compute Outage)', 'level': 'red'})
-    return {'status': 'Chaos injected: replicas=0'}
+    bg.add_task(_run_chaos, "kubectl apply -f ../../chaos/scenario1_cpu.yaml")
+    state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': '🔥 CHAOS INJECTED: CPU stress (Chaos Mesh) applied to cluster.', 'level': 'red'})
+    return {'status': 'Chaos injected: cpu'}
 
 @app.post('/chaos/memory')
 def chaos_memory(bg: BackgroundTasks):
-    bg.add_task(_run_chaos, "kubectl set resources deployment cartservice -c=server --limits=memory=10Mi --requests=memory=10Mi && kubectl delete pod -l app=cartservice")
-    state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': '🔥 CHAOS INJECTED: cartservice memory crushed to 10Mi (OOMKilled Loop)', 'level': 'red'})
-    return {'status': 'Chaos injected: memory=10Mi'}
+    bg.add_task(_run_chaos, "kubectl apply -f ../../chaos/scenario3_memory.yaml")
+    state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': '🔥 CHAOS INJECTED: Memory bloat (Chaos Mesh) applied to redis-cart.', 'level': 'red'})
+    return {'status': 'Chaos injected: memory'}
 
-@app.post('/chaos/frontend')
-def chaos_frontend(bg: BackgroundTasks):
-    bg.add_task(_run_chaos, "kubectl set image deployment/frontend server=frontend:broken-virus-image && kubectl delete pod -l app=frontend")
-    state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': '🔥 CHAOS INJECTED: frontend image corrupted (ImagePullBackOff)', 'level': 'red'})
-    return {'status': 'Chaos injected: broken image'}
+@app.post('/chaos/malware')
+def chaos_malware(bg: BackgroundTasks):
+    cmd = 'POD=$(kubectl get pods -l app=frontend -o jsonpath="{.items[0].metadata.name}") && kubectl label pod $POD app=quarantined security-status=isolated --overwrite'
+    bg.add_task(_run_chaos, cmd)
+    state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': '🦠 IDS MALWARE DETECTED: Frontend pod actively relabeled to "quarantine". NetworkPolicy frozen.', 'level': 'red'})
+    return {'status': 'Malware Quarantine Activated'}
+
+@app.post('/chaos/ddos')
+def chaos_ddos(bg: BackgroundTasks):
+    bg.add_task(_run_chaos, "kubectl apply -f ../../chaos/scenario4_ddos.yaml")
+    state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': '🔥 CHAOS INJECTED: L7 Volumetric Traffic Flood launched against API Gateway.', 'level': 'red'})
+    return {'status': 'Chaos injected: ddos'}

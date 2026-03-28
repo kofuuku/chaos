@@ -13,10 +13,47 @@ const COLORS = {
 const API = 'http://localhost:8000';
 
 const App = () => {
-  const [data, setData] = useState({ scores: {}, model_ready: false });
+  const [data, setData] = useState({ scores: {}, model_ready: false, isolated_pods: [] });
   const [history, setHistory] = useState([]);
   const [actions, setActions] = useState([]);
   const [firing, setFiring] = useState(null);
+  const [criticalAlert, setCriticalAlert] = useState(null);
+
+  const playSiren = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sawtooth';
+      
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.setValueAtTime(800, ctx.currentTime + 0.5);
+      osc.frequency.setValueAtTime(600, ctx.currentTime + 1.0);
+      
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 1.5);
+    } catch(e) { console.error('Audio refused', e) }
+  };
+
+  useEffect(() => {
+    let alertingSvc = null;
+    for (const [svc, score] of Object.entries(data.scores)) {
+      if (score > 0.85) { alertingSvc = svc; break; }
+    }
+    
+    if (alertingSvc && criticalAlert !== alertingSvc) {
+      setCriticalAlert(alertingSvc);
+      playSiren();
+    } else if (!alertingSvc && criticalAlert) {
+      setCriticalAlert(null);
+    }
+  }, [data.scores, criticalAlert]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -26,7 +63,7 @@ const App = () => {
       ]);
       const metricsData = await metricsRes.json();
       const actionsData = await actionsRes.json();
-      setData({ scores: metricsData.scores, model_ready: metricsData.model_ready });
+      setData({ scores: metricsData.scores, model_ready: metricsData.model_ready, isolated_pods: metricsData.isolated_pods || [] });
       setHistory(metricsData.history || []);
       setActions(actionsData);
     } catch (err) {
@@ -76,6 +113,13 @@ const App = () => {
 
   return (
     <div className="sentinel-app">
+      {criticalAlert && (
+        <div className="critical-banner">
+          <ShieldAlert size={20} className="pulse-icon" style={{ marginRight: '10px' }} />
+          CRITICAL OUTAGE DETECTED: {criticalAlert.toUpperCase()}
+        </div>
+      )}
+      
       {/* ── Header ──────────────────────────────────────── */}
       <header className="sentinel-header">
         <div className="logo-section">
@@ -87,9 +131,17 @@ const App = () => {
             <div className="subtitle">Autonomous Chaos Engineering & Self-Healing Platform</div>
           </div>
         </div>
-        <div className="status-badge online">
-          <span className="pulse-dot"></span>
-          SYSTEM ARMED
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {data.isolated_pods && data.isolated_pods.length > 0 && (
+            <div className="status-badge" style={{ background: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', borderColor: 'rgba(236, 72, 153, 0.3)' }} title={data.isolated_pods.join('\n')}>
+              <ShieldAlert size={14} style={{ marginRight: '6px' }} />
+              {data.isolated_pods.length} QUARANTINED
+            </div>
+          )}
+          <div className="status-badge online">
+            <span className="pulse-dot"></span>
+            SYSTEM ARMED
+          </div>
         </div>
       </header>
 
@@ -103,24 +155,34 @@ const App = () => {
           onClick={() => triggerChaos('scale')}
         >
           <div className="icon-wrap"><Cpu size={24} color="#ef4444" /></div>
-          <div className="btn-title">CPU / Compute Outage</div>
-          <div className="btn-desc">Scale cartservice replicas to 0</div>
+          <div className="btn-title">CPU / Compute Spike</div>
+          <div className="btn-desc">Inject CPU Stress via Chaos Mesh</div>
         </button>
         <button
           className={`chaos-btn ${firing === 'memory' ? 'firing' : ''}`}
           onClick={() => triggerChaos('memory')}
         >
           <div className="icon-wrap"><HardDrive size={24} color="#ef4444" /></div>
-          <div className="btn-title">Memory Death Loop</div>
-          <div className="btn-desc">Crush cartservice to 10Mi OOMKilled</div>
+          <div className="btn-title">Memory Bloat</div>
+          <div className="btn-desc">Inject Memory Stress via Chaos Mesh</div>
         </button>
         <button
-          className={`chaos-btn ${firing === 'frontend' ? 'firing' : ''}`}
-          onClick={() => triggerChaos('frontend')}
+          className={`chaos-btn ${firing === 'malware' ? 'firing' : ''}`}
+          onClick={() => triggerChaos('malware')}
+          style={{ borderColor: 'rgba(236, 72, 153, 0.4)' }}
         >
-          <div className="icon-wrap"><ImageOff size={24} color="#ef4444" /></div>
-          <div className="btn-title">Frontend Corruption</div>
-          <div className="btn-desc">Inject broken Docker image into frontend</div>
+          <div className="icon-wrap"><ShieldAlert size={24} color="#ec4899" /></div>
+          <div className="btn-title" style={{ color: '#ec4899' }}>IDS Malware Quarantine</div>
+          <div className="btn-desc">Isolate Pod via NetworkPolicy & Labels</div>
+        </button>
+        <button
+          className={`chaos-btn ${firing === 'ddos' ? 'firing' : ''}`}
+          onClick={() => triggerChaos('ddos')}
+          style={{ borderColor: 'rgba(245, 158, 11, 0.4)' }}
+        >
+          <div className="icon-wrap"><Activity size={24} color="#f59e0b" /></div>
+          <div className="btn-title" style={{ color: '#f59e0b' }}>L7 Volumetric DDoS</div>
+          <div className="btn-desc">Traffic Flood & CPU Saturation</div>
         </button>
       </div>
 
