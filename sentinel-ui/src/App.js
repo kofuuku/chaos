@@ -4,10 +4,10 @@ import { ShieldAlert, Cpu, HardDrive, ImageOff, Activity, Terminal, Zap } from '
 import './index.css';
 
 const COLORS = {
-  frontend: '#6366f1',
-  checkoutservice: '#22d3ee',
-  cartservice: '#f59e0b',
-  'redis-cart': '#ec4899',
+  frontend: '#3B82F6',
+  checkoutservice: '#06B6D4',
+  cartservice: '#F59E0B',
+  'redis-cart': '#F43F5E',
 };
 
 const API = 'http://localhost:8000';
@@ -24,21 +24,21 @@ const App = () => {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
+
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.type = 'sawtooth';
-      
+
       osc.frequency.setValueAtTime(600, ctx.currentTime);
       osc.frequency.setValueAtTime(800, ctx.currentTime + 0.5);
       osc.frequency.setValueAtTime(600, ctx.currentTime + 1.0);
-      
+
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
-      
+
       osc.start();
       osc.stop(ctx.currentTime + 1.5);
-    } catch(e) { console.error('Audio refused', e) }
+    } catch (e) { console.error('Audio refused', e) }
   };
 
   useEffect(() => {
@@ -46,7 +46,7 @@ const App = () => {
     for (const [svc, score] of Object.entries(data.scores)) {
       if (score > 0.85) { alertingSvc = svc; break; }
     }
-    
+
     if (alertingSvc && criticalAlert !== alertingSvc) {
       setCriticalAlert(alertingSvc);
       playSiren();
@@ -94,10 +94,45 @@ const App = () => {
   };
 
   const getScoreColor = (score) => {
-    if (score > 0.85) return '#ef4444';
-    if (score > 0.65) return '#f59e0b';
-    return '#10b981';
+    if (score > 0.85) return '#F43F5E';
+    if (score > 0.65) return '#F59E0B';
+    return '#10B981';
   };
+
+  const getNodeClass = (svc) => {
+    const score = data.scores[svc] || 0;
+    if (score > 0.85) return 'base node-glow-critical';
+    if (score > 0.65) return 'base node-glow-warning';
+    return 'base node-glow-healthy';
+  };
+
+  const NODES = {
+    frontend: { x: 80, y: 150, label: 'FRONTEND' },
+    ad: { x: 280, y: 40, label: 'AD' },
+    recommendation: { x: 280, y: 100, label: 'RECOMMEND' },
+    product: { x: 480, y: 100, label: 'CATALOG' },
+    checkout: { x: 280, y: 170, label: 'CHECKOUT' },
+    payment: { x: 480, y: 155, label: 'PAYMENT' },
+    shipping: { x: 480, y: 215, label: 'SHIPPING' },
+    email: { x: 680, y: 155, label: 'EMAIL' },
+    currency: { x: 680, y: 215, label: 'CURRENCY' },
+    cart: { x: 280, y: 270, label: 'CART' },
+    redis: { x: 480, y: 270, label: 'REDIS CACHE' }
+  };
+
+  const EDGES = [
+    ['frontend', 'ad'],
+    ['frontend', 'recommendation'],
+    ['recommendation', 'product'],
+    ['frontend', 'checkout'],
+    ['checkout', 'payment'],
+    ['checkout', 'shipping'],
+    ['checkout', 'email'],
+    ['checkout', 'currency'],
+    ['frontend', 'cart'],
+    ['checkout', 'cart'],
+    ['cart', 'redis']
+  ];
 
   if (!data.model_ready) {
     return (
@@ -119,7 +154,7 @@ const App = () => {
           CRITICAL OUTAGE DETECTED: {criticalAlert.toUpperCase()}
         </div>
       )}
-      
+
       {/* ── Header ──────────────────────────────────────── */}
       <header className="sentinel-header">
         <div className="logo-section">
@@ -133,7 +168,7 @@ const App = () => {
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           {data.isolated_pods && data.isolated_pods.length > 0 && (
-            <div className="status-badge" style={{ background: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', borderColor: 'rgba(236, 72, 153, 0.3)' }} title={data.isolated_pods.join('\n')}>
+            <div className="status-badge" style={{ background: 'rgba(244, 63, 94, 0.15)', color: '#F43F5E', borderColor: 'rgba(244, 63, 94, 0.3)' }} title={data.isolated_pods.join('\n')}>
               <ShieldAlert size={14} style={{ marginRight: '6px' }} />
               {data.isolated_pods.length} QUARANTINED
             </div>
@@ -154,7 +189,7 @@ const App = () => {
           className={`chaos-btn ${firing === 'scale' ? 'firing' : ''}`}
           onClick={() => triggerChaos('scale')}
         >
-          <div className="icon-wrap"><Cpu size={24} color="#ef4444" /></div>
+          <div className="icon-wrap"><Cpu size={24} color="#F43F5E" /></div>
           <div className="btn-title">CPU / Compute Spike</div>
           <div className="btn-desc">Inject CPU Stress via Chaos Mesh</div>
         </button>
@@ -162,17 +197,17 @@ const App = () => {
           className={`chaos-btn ${firing === 'memory' ? 'firing' : ''}`}
           onClick={() => triggerChaos('memory')}
         >
-          <div className="icon-wrap"><HardDrive size={24} color="#ef4444" /></div>
+          <div className="icon-wrap"><HardDrive size={24} color="#F43F5E" /></div>
           <div className="btn-title">Memory Bloat</div>
           <div className="btn-desc">Inject Memory Stress via Chaos Mesh</div>
         </button>
         <button
           className={`chaos-btn ${firing === 'malware' ? 'firing' : ''}`}
           onClick={() => triggerChaos('malware')}
-          style={{ borderColor: 'rgba(236, 72, 153, 0.4)' }}
+          style={{ borderColor: 'rgba(244, 63, 94, 0.4)' }}
         >
-          <div className="icon-wrap"><ShieldAlert size={24} color="#ec4899" /></div>
-          <div className="btn-title" style={{ color: '#ec4899' }}>IDS Malware Quarantine</div>
+          <div className="icon-wrap"><ShieldAlert size={24} color="#F43F5E" /></div>
+          <div className="btn-title" style={{ color: '#F43F5E' }}>IDS Malware Quarantine</div>
           <div className="btn-desc">Isolate Pod via NetworkPolicy & Labels</div>
         </button>
         <button
@@ -180,8 +215,8 @@ const App = () => {
           onClick={() => triggerChaos('ddos')}
           style={{ borderColor: 'rgba(245, 158, 11, 0.4)' }}
         >
-          <div className="icon-wrap"><Activity size={24} color="#f59e0b" /></div>
-          <div className="btn-title" style={{ color: '#f59e0b' }}>L7 Volumetric DDoS</div>
+          <div className="icon-wrap"><Activity size={24} color="#F59E0B" /></div>
+          <div className="btn-title" style={{ color: '#F59E0B' }}>L7 Volumetric DDoS</div>
           <div className="btn-desc">Traffic Flood & CPU Saturation</div>
         </button>
       </div>
@@ -209,10 +244,10 @@ const App = () => {
                     style={{
                       width: `${Math.min(score * 100, 100)}%`,
                       background: score > 0.85
-                        ? 'linear-gradient(90deg, #ef4444, #dc2626)'
+                        ? 'linear-gradient(90deg, #BE123C, #F43F5E)'
                         : score > 0.65
-                          ? 'linear-gradient(90deg, #f59e0b, #d97706)'
-                          : 'linear-gradient(90deg, #10b981, #059669)',
+                          ? 'linear-gradient(90deg, #D97706, #F59E0B)'
+                          : 'linear-gradient(90deg, #059669, #10B981)',
                     }}
                   ></div>
                 </div>
@@ -221,85 +256,96 @@ const App = () => {
           </div>
         </div>
 
-        {/* Right: Live Risk Chart */}
-        <div>
-          <div className="section-title">
-            <Activity size={14} /> Live Risk Telemetry
+        {/* Center: Live Node Map & Risk Chart */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%' }}>
+
+          {/* Node Map */}
+          <div>
+            <div className="section-title">
+              <Activity size={14} /> Chaos Gateway Mesh
+            </div>
+            <div className="glass-card node-map-card">
+              <svg className="node-svg" viewBox="0 0 780 320">
+                {EDGES.map(([src, dst], idx) => {
+                  const n1 = NODES[src];
+                  const n2 = NODES[dst];
+                  const d = `M${n1.x},${n1.y} C${n1.x + 80},${n1.y} ${n2.x - 80},${n2.y} ${n2.x},${n2.y}`;
+                  return <path key={`edge-${idx}`} id={`edge-${idx}`} d={d} fill="none" stroke="#334155" strokeWidth="2" />;
+                })}
+
+                {EDGES.map(([src, dst], idx) => (
+                  <circle key={`pkt-${idx}`} r="3" className="packet">
+                    <animateMotion dur={`${1 + ((idx % 3) * 0.3)}s`} repeatCount="indefinite">
+                      <mpath href={`#edge-${idx}`} />
+                    </animateMotion>
+                  </circle>
+                ))}
+
+                {Object.entries(NODES).map(([key, n]) => {
+                  let scoreKey = key;
+                  if (key === 'cart') scoreKey = 'cartservice';
+                  if (key === 'checkout') scoreKey = 'checkoutservice';
+                  if (key === 'redis') scoreKey = 'redis-cart';
+                  return (
+                    <g key={key} className="node-group" transform={`translate(${n.x},${n.y})`}>
+                      <circle className={getNodeClass(scoreKey)} r={key === 'frontend' ? 22 : 14} />
+                      <text y={key === 'frontend' ? 40 : 28} textAnchor="middle">{n.label}</text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
           </div>
-          <div className="glass-card chart-container">
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={history} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                  <defs>
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div className="section-title">
+              <Activity size={14} /> Live Risk Telemetry
+            </div>
+            <div className="glass-card chart-container" style={{ flex: 1, padding: '16px 20px' }}>
+              <div className="chart-wrap" style={{ height: '240px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={history} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                    <defs>
+                      {Object.entries(COLORS).map(([svc, color]) => (
+                        <linearGradient key={svc} id={`grad-${svc}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={color} stopOpacity={0} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="time" stroke="#94A3B8" fontSize={10} tickLine={false} interval="preserveStartEnd" fontFamily="JetBrains Mono" />
+                    <YAxis domain={[0, 1]} stroke="#94A3B8" fontSize={10} tickLine={false} fontFamily="JetBrains Mono" />
+                    <Tooltip contentStyle={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px', fontFamily: 'JetBrains Mono', color: '#F8FAFC' }} />
+                    <ReferenceLine y={0.85} stroke="#F43F5E" strokeDasharray="5 5" strokeOpacity={0.6} label={{ value: 'RED', fill: '#F43F5E', fontSize: 10 }} />
+                    <ReferenceLine y={0.65} stroke="#F59E0B" strokeDasharray="5 5" strokeOpacity={0.4} label={{ value: 'WARN', fill: '#F59E0B', fontSize: 10 }} />
                     {Object.entries(COLORS).map(([svc, color]) => (
-                      <linearGradient key={svc} id={`grad-${svc}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={color} stopOpacity={0.3} />
-                        <stop offset="95%" stopColor={color} stopOpacity={0} />
-                      </linearGradient>
+                      <Area key={svc} type="monotone" dataKey={svc} stroke={color} fill={`url(#grad-${svc})`} strokeWidth={2} dot={false} isAnimationActive={false} />
                     ))}
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis
-                    dataKey="time"
-                    stroke="#475569"
-                    fontSize={10}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                    fontFamily="JetBrains Mono"
-                  />
-                  <YAxis
-                    domain={[0, 1]}
-                    stroke="#475569"
-                    fontSize={10}
-                    tickLine={false}
-                    fontFamily="JetBrains Mono"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'rgba(15, 23, 42, 0.95)',
-                      border: '1px solid rgba(99, 102, 241, 0.3)',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontFamily: 'JetBrains Mono',
-                    }}
-                  />
-                  <ReferenceLine y={0.85} stroke="#ef4444" strokeDasharray="5 5" strokeOpacity={0.6} label={{ value: 'RED', fill: '#ef4444', fontSize: 10 }} />
-                  <ReferenceLine y={0.65} stroke="#f59e0b" strokeDasharray="5 5" strokeOpacity={0.4} label={{ value: 'WARN', fill: '#f59e0b', fontSize: 10 }} />
-                  {Object.entries(COLORS).map(([svc, color]) => (
-                    <Area
-                      key={svc}
-                      type="monotone"
-                      dataKey={svc}
-                      stroke={color}
-                      fill={`url(#grad-${svc})`}
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  ))}
-                </AreaChart>
-              </ResponsiveContainer>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Audit Log ───────────────────────────────────── */}
-      <div className="audit-section">
-        <div className="section-title">
-          <Terminal size={14} /> Decision Engine Audit Log
-        </div>
-        <div className="glass-card audit-log">
-          {actions.length === 0 ? (
-            <div className="empty-state">System healthy. No autonomous actions triggered.</div>
-          ) : (
-            actions.map((action, i) => (
-              <div key={i} className="log-entry">
-                <span className="log-time">{action.time}</span>
-                <span className={`log-msg ${action.level}`}>{action.msg}</span>
-              </div>
-            ))
-          )}
+
+        <div className="audit-section">
+          <div className="section-title">
+            <Terminal size={14} /> Decision Engine Audit Log
+          </div>
+          <div className="glass-card audit-log">
+            {actions.length === 0 ? (
+              <div className="empty-state">System healthy. No autonomous actions triggered.</div>
+            ) : (
+              actions.map((action, i) => (
+                <div key={i} className="log-entry">
+                  <span className="log-time">{action.time}</span>
+                  <span className={`log-msg ${action.level}`}>{action.msg}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
